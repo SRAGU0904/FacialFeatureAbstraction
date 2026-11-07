@@ -8,9 +8,9 @@
       taskGoal:
         "Create a food-face collage through visual association. Use and combine the supplied foods freely to stand in for facial features and capture what is distinctive about the person.",
       taskRules:
-        "Complete both portraits. There is no time limit or limit on how many food items you use; you may reuse any item. You can move, rotate, flip and resize foods proportionally.",
+        "Complete both portraits. You may reuse any food item. You can move, rotate, flip and resize foods proportionally.",
       taskSubmit:
-        "Edit freely before submitting. Before submitting, enter your basic personal details in the form below; you only need to fill it in once for both portraits. Submitting generates your result in JSON format. Before leaving, copy and send each portrait's result to the developer. Refreshing starts a new session and clears the current content.",
+        "Submit each of the two collages separately. You can edit freely before submitting. After completing a collage, enter your basic personal details in the form below and click “Submit portrait”. Submitting generates your result in JSON format. Before leaving, copy and send each portrait's result to the developer. Please note that refreshing starts a new session and clears the current content.",
       original: "Original",
       collage: "Collage",
       library: "Food library",
@@ -118,9 +118,9 @@
       task: "任务说明",
       taskGoal: "通过视觉联想完成食物人脸拼贴。自由使用和组合提供的食物来替代面部特征，并表现人物的独特之处。",
       taskRules:
-        "请完成两幅肖像。不限时间和食物数量，同一种食物可重复使用。你可以移动、旋转、翻转和等比例缩放食物。",
+        "请完成两幅肖像，同一种食物可重复使用。你可以移动、旋转、翻转和等比例缩放食物。",
       taskSubmit:
-        "提交前可自由修改。请在提交前于下方表格填写简要个人信息，两幅肖像只需填写一次，切换肖像不会清空。提交后将生成一段 JSON 格式的结果。离开前请复制并把每幅肖像的结果发送给开发者。刷新页面会开始新会话，并清空当前内容。",
+        "两幅拼贴画需要分别提交两次，提交前可自由编辑。请在完成拼贴画后于下方表格填写简要个人信息，并点击“提交肖像”。提交后将生成一段 JSON 格式的结果。离开前请复制并把每幅肖像的结果发送给开发者。请注意，刷新页面会开始新会话，并清空当前内容。",
       original: "原图",
       collage: "拼贴",
       library: "食物素材",
