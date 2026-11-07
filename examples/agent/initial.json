@@ -1,0 +1,7 @@
+{
+  "items": [
+    {"uid": "f1", "id": "mango", "x": 0.51, "y": 0.44, "size": 0.3, "angle": 80},
+    {"uid": "f2", "id": "blueberry", "x": 0.48, "y": 0.39, "size": 0.035, "angle": 0},
+    {"uid": "f3", "id": "blueberry", "x": 0.57, "y": 0.39, "size": 0.035, "angle": 0}
+  ]
+}

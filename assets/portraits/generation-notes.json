@@ -1,7 +1,10 @@
 {
   "tool": "OpenAI built-in image_gen",
   "rendering": "Hat and garment colors/positions come directly from original uploaded pixels. Generated images are used only within the face removal region. Render order: original portrait, inpainted face region, user food, clipped original hat.",
-  "originals": ["zhu-original.png", "euro-original.png"],
+  "originals": [
+    "zhu-original.png",
+    "euro-original.png"
+  ],
   "facePaths": "../js/portrait-paths.js",
   "fill": {
     "zhu": {
@@ -20,5 +23,15 @@
     "drafts/euro-foreground.png",
     "drafts/zhu-background.png",
     "drafts/euro-face-fill.png"
-  ]
+  ],
+  "portraitMetadata": {
+    "euro": {
+      "name": "Rudolf II",
+      "artist": "Hans von Aachen",
+      "date": "1606–1608",
+      "collection": "Kunsthistorisches Museum, Vienna",
+      "source": "https://www.wga.hu/html_m/a/aachen/rudolf2.html",
+      "note": "The stable euro asset ID and filenames are retained for compatibility."
+    }
+  }
 }

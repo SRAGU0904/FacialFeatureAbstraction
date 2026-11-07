@@ -90,7 +90,8 @@ window.FOODFACE_CATALOG = {
       center: [0.51, 0.425],
     },
     euro: {
-      name: "European portrait",
+      name: "Rudolf II",
+      artist: "Hans von Aachen",
       w: 1312,
       h: 1604,
       center: [0.57, 0.46],

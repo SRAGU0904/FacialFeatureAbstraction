@@ -1,0 +1,38 @@
+{
+  "items": [
+    {
+      "uid": "f1",
+      "id": "mango",
+      "x": 0.51,
+      "y": 0.44,
+      "size": 0.27,
+      "angle": 90,
+      "flipX": true,
+      "flipY": true
+    },
+    {
+      "uid": "f4",
+      "id": "chili",
+      "x": 0.53,
+      "y": 0.51,
+      "size": 0.12,
+      "angle": 90
+    },
+    {
+      "uid": "f2",
+      "id": "blueberry",
+      "x": 0.49,
+      "y": 0.39,
+      "size": 0.035,
+      "angle": 0
+    },
+    {
+      "uid": "f3",
+      "id": "blueberry",
+      "x": 0.56,
+      "y": 0.39,
+      "size": 0.035,
+      "angle": 0
+    }
+  ]
+}

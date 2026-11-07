@@ -1,6 +1,6 @@
 # FoodFace
 
-A local portrait collage studio for facial feature abstraction. Arrange 16 food cutouts on either of two portraits, then save the collage as paired JSON and PNG files on this computer.
+A bilingual portrait collage studio for facial feature abstraction. Arrange 16 food cutouts on two portraits, then copy each result as JSON for manual sharing with the researcher.
 
 ## Run
 
@@ -12,17 +12,25 @@ python3 scripts/server.py
 
 On macOS, you can also double-click `Start FoodFace.command`. Keep the terminal open; press `Control+C` to stop. The default address is `http://127.0.0.1:8765`. If the port is occupied, the server prints an available address.
 
-Use `--port 9000` to choose a port or `--no-browser` to skip opening the browser. The browser sends saved snapshots only to the local Python service; nothing is uploaded to a remote server.
+Use `--port 9000` to choose a port or `--no-browser` to skip opening the browser. The human page generates results entirely in the browser. It does not upload submissions or demographic information and can run on static hosting, including GitHub Pages. Use English or 中文 in the upper-right corner to switch the interface without resetting work.
 
-## Create a collage
+## Human experiment
 
-1. Choose a portrait. Each portrait keeps a separate collage.
-2. Click a food item to add it, or drag it onto the canvas.
-3. Drag to move, use the lower-right handle to resize, or the top handle to rotate. Use the sliders for precise adjustments.
-4. Use **Backward**, **Forward**, **Duplicate**, or **Delete** to edit the selection. Select covered items in **Layers**.
-5. Select **Save JSON + PNG** to save the active portrait's editable scene data and full-resolution image without selection controls. The confirmation shows the saved location and links to both files.
+Create food collages that resemble each person and emphasize their distinctive facial features. Complete both portraits in any order; there is no practice trial or time limit. Any food can be reused, with no item count limit. Preserve natural food shapes: move, rotate, flip and resize proportionally.
 
-The original hat stays in front of the food. Food can cover the collar and clothing. **Clear** removes all food from the active portrait and can be undone.
+1. Choose Zhu Yuanzhang or Rudolf II. Switch freely between unfinished portraits.
+2. Click a food to add it, or drag it onto the canvas.
+3. Drag to move, use the lower-right handle to resize, or the top handle to rotate. Sliders allow precise adjustments.
+4. Use **Flip horizontal** or **Flip vertical** to mirror selected food; click again to undo that flip. Use **Backward**, **Forward**, **Duplicate**, **Delete**, **Clear**, undo and redo while editing. Select covered items in **Layers**.
+5. Read the research notice below the submission button and enter gender, age, and nationality. These details apply to both portraits and are fixed after the first submission.
+6. Select **Submit portrait** and confirm. The portrait is locked and its complete result JSON appears below the form. Use **Copy JSON**, then send it to the website developer yourself.
+7. Complete the other portrait and copy its result too. You can switch back to either submitted portrait to copy its JSON again.
+
+Refreshing or reopening starts a new session and clears both collages, participant details, and generated JSON. Nothing is saved automatically; copy and send both results before leaving. The notice explains that copying and sending a result to the developer indicates agreement to research use. Generating or copying JSON alone does not transmit it or prove it was sent. No names, contact details, timer, or operation log are requested.
+
+The original hat stays in front of the food. Food can cover the collar and clothing.
+
+The second portrait is **Rudolf II**, by **Hans von Aachen**, 1606–1608, Kunsthistorisches Museum, Vienna ([artwork reference](https://www.wga.hu/html_m/a/aachen/rudolf2.html)). The existing `euro` asset ID and filenames remain stable so saved scenes and agent inputs stay compatible.
 
 ## Keyboard shortcuts
 
@@ -36,19 +44,31 @@ The original hat stays in front of the food. Food can cover the collar and cloth
 | Cmd/Ctrl + D                     | Duplicate selection          |
 | Shift while rotating             | Snap to 15-degree increments |
 
-## Saving
+## Result JSON and image reproduction
 
-Working drafts save automatically in browser storage. Use the same browser, host, and port to restore them. Clearing site data removes these drafts. This browser autosave is separate from saving files.
+Each result uses the same complete scene fields as agent snapshots: `schemaVersion`, `assetVersion`, `rendererVersion`, `portraitId`, `canvas`, and `items`. Each item includes its instance `uid`, asset `id`, normalized center `x`/`y`, proportional `size`, clockwise `angle`, and optional `flipX`/`flipY`. Array order runs from the lowest food layer to the highest.
 
-**Save JSON + PNG** writes a new snapshot into `result-data/FoodFace-<portrait>-<snapshot UUID>/` in the project directory. Inside, the `.json` and `.png` files have the same base name. Each click preserves a separate snapshot; earlier saves are never overwritten. The pair is published together after both files have been written. Original images are never modified. `result-data/` is excluded from Git; back up this directory separately. Start or restart the Python service after updating the code to enable the save endpoint.
+Human metadata is separate: `demographics` contains `gender`, integer `age`, and the entered `nationality`; `experiment` records `actorType`, the shared random `sessionId`, unique `trialId`, `status`, `submittedAt` (UTC), and `interfaceLanguage` (`en` or `zh`). `feedback` contains optional suggestions or comments (an empty string when left blank). `researchNotice` retains the English wording corresponding to the bilingual notice. Field names and gender codes remain English in both interfaces; nationality preserves the participant's input. Session IDs group portraits but do not establish distinct participants. JSON does not include pixels or editing history.
 
-Saved JSON contains `schemaVersion`, `assetVersion`, `rendererVersion`, `snapshotId`, `savedAt` (UTC), `portraitId`, `canvas`, and `items`. It also records the PNG filename and SHA-256 checksum. `savedAt` is the snapshot time, not the start of the editing session. Each item contains a stable instance `uid`, food asset `id`, center coordinates `x` and `y` (fractions of canvas width and height), `size` (the longest side of the alpha-cropped food image divided by canvas width), and `angle` (clockwise degrees). Array order runs from the lowest food layer to the highest. Undo/redo history is not included.
+Save a received JSON message as a UTF-8 file, then render it using the existing [agent environment](docs/agent-workflow.md):
 
-Version 1 uses the bundled assets, alpha-bound calculation and rendering rules in `app.js`, catalog settings, and face/hat paths. JSON references shared assets; it does not embed them. Retain these assets and rendering rules with your backups, and increment/archive their versions before changing them if old snapshots must render identically. A JSON import or regeneration tool is not included yet.
+```sh
+PLAYWRIGHT_BROWSERS_PATH=/private/tmp/foodface-agent-browsers \
+  /private/tmp/foodface-agent-venv/bin/python scripts/render_scene.py \
+  /absolute/path/result.json --output /absolute/path/result.png
+```
 
-## Deferred work / project reminder
+`render_scene.py` validates the scene and calls the existing `agent.BrowserRenderer`, which uses `agent-render.html` and the shared `renderer.js`. Demographics do not affect rendering. Output is the original portrait resolution; existing output files are never overwritten. The same command accepts full agent scene snapshots. Raw agent responses containing only `items` also need the portrait and version fields supplied by the agent runner.
 
-- **Agreed 2026-11-07:** save JSON and PNG together during the initial stage. Later, add a local tool to regenerate individual or batches of PNGs from JSON and the matching shared assets. When discussing growing image storage or switching to JSON-only saves, remind the user about this tool before removing stored PNGs. Validate it against the paired PNGs saved during this stage. No reminder date has been set.
+Keep received JSON in private storage outside the public site. The existing local snapshot/submission APIs and previously saved PNGs remain available for earlier integrations; the human page no longer calls those APIs. `result-data/` remains ignored by Git. Keep the matching assets, renderer, and browser version with research results for reproducibility; do not replace shared assets without archiving/versioning them.
+
+## Agent prototype
+
+The local Python runner accepts three complete JSON layouts (an initial attempt and two adjustments), renders each with the same renderer as the human editor, and returns an image plus the resulting scene. It also prepares an English prompt, original/empty portraits, and a labeled food contact sheet. See [Agent workflow](docs/agent-workflow.md) for the manual JSON demo and protocol. The [OpenAI experiment runner](docs/openai-experiment.md) adds GPT-6.1 Sol via Responses API with terminal-supplied credentials, separate three-round histories for both portraits, and an offline dry run using fabricated responses.
+
+## Deferred work
+
+Single-scene JSON-to-PNG rendering is implemented with the existing agent renderer. Batch regeneration remains deferred. Previously saved JSON + PNG pairs remain intact for comparison.
 
 ## Repository structure
 
@@ -57,7 +77,10 @@ index.html                    Studio page
 assets/
   css/styles.css              Layout and styles
   js/
-    app.js                    Canvas, editing, storage, and export
+    app.js                    Editing, demographics, and copyable result JSON
+    i18n.js                   English and Chinese interface strings
+    renderer.js               Shared human/agent asset loading and rendering
+    agent-render.js           Agent image preparation and browser bridge
     catalog.js                Food names, sizes, and portrait settings
     portrait-paths.js         Face and hat clipping paths
   foods/                      16 transparent PNG cutouts and manifest.json
@@ -65,6 +88,13 @@ assets/
     drafts/                   Unused generated layers
     generation-notes.json     Generation prompts and rendering notes
 scripts/server.py             Local static server and snapshot save API
+scripts/agent.py              JSON-to-image agent loop (manual responses)
+scripts/render_scene.py       Render received human or agent scene JSON to PNG
+scripts/openai_experiment.py   OpenAI experiment and offline HTTP-mocked dry run
+agent-render.html             Isolated browser rendering surface
+prompts/agent-layout.txt       English agent instructions
+examples/agent/               Hand-written initial and adjustment responses
+docs/agent-workflow.md         Agent setup, protocol and verification
 result-data/                  Saved JSON + PNG pairs (not tracked by Git)
 Start FoodFace.command        macOS launcher
 ```

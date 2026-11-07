@@ -1,0 +1,25 @@
+PURPOSE
+Create a food-face collage through visual association. Use and combine the supplied foods freely to stand in for facial features and capture what is distinctive about the person.
+
+OPERATIONS AND LAYERS
+Select, reuse, move, rotate, flip, uniformly resize, remove, and reorder food instances. Preserve each food's natural shape: no stretching, warping, recoloring, specimen cropping, or new image generation. There is no food instance count limit.
+Layers, from back to front: the empty-face portrait (including background, clothing, and collar), your food instances, then the original hat. The hat hides overlapping food; food cannot cover the hat. Food can cover the collar, clothing, and background, and is not clipped to the face region. You control only food layers. In the items array, later entries are drawn on top of earlier entries and hide them where they overlap. The outer canvas clips overflow.
+
+INPUTS AND COORDINATES
+You receive the original portrait, its empty-face counterpart, and a food contact sheet. Both portraits show the same full frame with logical width W={{WIDTH}} and height H={{HEIGHT}} pixels. Observation images may be downscaled; coordinates always refer to the full frame.
+The contact sheet labels each food's original orientation, string asset ID, and cropped width cw / height ch. Only transparent margins are cropped. Tiles fit foods independently; their display sizes are not placement sizes. Asset IDs and cropped dimensions:
+{{CATALOG}}
+The face-removal mask's normalized bounding box is {{FACE_BOUNDS}}. This is a location aid, not facial landmarks, an exact head outline, or a placement restriction. Use the original portrait to locate features.
+- x,y: center of the cropped food rectangle, in [0,1]. Origin: top-left; right/down are positive. Pixel center=(x*W,y*H).
+- size: longest unrotated food side / W, in [0.03,0.9], not relative to the face. Rendered width=size*W*cw/max(cw,ch); height=size*W*ch/max(cw,ch).
+- angle: clockwise degrees around the center, in [-180,180]; 0 matches the contact sheet.
+- flipX,flipY: optional booleans, default false. flipX reverses left/right along the food's own local X direction; flipY reverses up/down along its own local Y direction. These directions refer to the original orientation in the contact sheet, not the screen axes after rotation. Both flips act around the center of the cropped food rectangle, before angle rotation. They do not change x, y, size, or angle. Set both true to apply both flips.
+- id selects an asset. uid identifies one instance: a unique nonempty string, at most 128 characters (e.g. "f1"). Repeated assets need different uids. Preserve uids during adjustments; never reuse a removed uid.
+
+ROUNDS
+You have ONE initial attempt followed by TWO review rounds (rounds 2 and 3). After each accepted response, the program renders your layout. In each review round, inspect the latest collage and refer to your previous complete layout in the conversation. Changes are optional: if you consider the current collage good enough, return exactly the same complete JSON layout as in your previous response. Do not make changes just because another round is available. Round 3 is final. Invalid responses are rejected without changing the scene or consuming an opportunity. Return JSON only: no Markdown or explanations.
+
+RESPONSE FORMAT — ALL THREE ROUNDS
+Always return the complete layout as {"items":[...]}, including all unchanged instances. Each item must contain uid (string), id (a string from the asset catalog), x (number), y (number), size (number), angle (number). It may also contain flipX and flipY (booleans: true or false). No other fields are allowed. Include every true flip flag on every round; an omitted flip flag means false, not "keep the previous value". Do not include portrait, canvas, version, or operation fields.
+Each response replaces the entire previous food layout. Keep the same uid and id for a retained instance; change its position, size, angle, flip flags, or array position as needed. Add an instance by including it with a fresh uid. Remove an instance by leaving it out. To replace an instance with a different asset, use a fresh uid. List every desired instance once, ordered from bottom to top: the first is the lowest food layer, the last is the highest. The hat remains above all food layers.
+To keep the collage unchanged, return the same complete items array. {"items":[]} clears all food; {} is invalid. Every accepted complete layout consumes one opportunity.

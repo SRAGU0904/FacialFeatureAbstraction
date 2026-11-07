@@ -4,27 +4,25 @@
   const canvas = $("collage"),
     ctx = canvas.getContext("2d");
   const { foods, portraits } = window.FOODFACE_CATALOG;
+  const i18n = window.FOODFACE_I18N;
+  const mobileLayout = window.matchMedia("(max-width: 560px)");
+  const t = (key, values) => i18n.t(key, values);
+  const foodName = (id) => t("food." + id);
+  const portraitName = (id) => t("portrait." + id);
   const foodById = Object.fromEntries(foods.map((f) => [f.id, f]));
-  const paths = Object.fromEntries(
-    Object.entries(window.FOODFACE_PATHS).map(([id, p]) => [
-      id,
-      { face: new Path2D(p.face), hat: new Path2D(p.hat) },
-    ]),
-  );
-  const assets = new Map(),
+  const renderer = window.FOODFACE_RENDERER,
+    assets = renderer.assets,
     states = {
-      zhu: { items: [], undo: [], redo: [] },
-      euro: { items: [], undo: [], redo: [] },
+      zhu: { items: [], undo: [], redo: [], submitted: false, result: null },
+      euro: { items: [], undo: [], redo: [], submitted: false, result: null },
     };
-  const storageKey = "foodface-studio-v1";
   let active = "zhu",
     selected = null,
     ready = false,
-    savingSnapshot = false,
+    participant = null,
     gesture = null,
     libraryDrag = null,
-    toastTimer,
-    saveTimer;
+    toastTimer;
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const state = () => states[active];
   const selectedItem = () => state().items.find((i) => i.uid === selected);
@@ -32,67 +30,33 @@
   const normalizeAngle = (n) => ((((n + 180) % 360) + 360) % 360) - 180;
   const uid = () =>
     globalThis.crypto?.randomUUID?.() ||
-    `food-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+      const r = Math.floor(Math.random() * 16);
+      return (c === "x" ? r : (r & 3) | 8).toString(16);
+    });
 
-  // Feedback and local storage
+  // Feedback
   function toast(message) {
     $("toast").textContent = message;
     $("toast").classList.add("visible");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => $("toast").classList.remove("visible"), 2400);
   }
-  function save() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      try {
-        localStorage.setItem(
-          storageKey,
-          JSON.stringify({
-            active,
-            scenes: Object.fromEntries(
-              Object.entries(states).map(([k, s]) => [k, s.items]),
-            ),
-          }),
-        );
-        $("saveStatus").textContent = "Draft saved in browser";
-      } catch {
-        $("saveStatus").textContent =
-          "Browser autosave unavailable. Use Save JSON + PNG to keep your work.";
-      }
-    }, 180);
-  }
-  function restore() {
-    try {
-      const data = JSON.parse(localStorage.getItem(storageKey) || "null");
-      if (!data) return;
-      if (portraits[data.active]) active = data.active;
-      for (const key of Object.keys(states)) {
-        if (!Array.isArray(data.scenes?.[key])) continue;
-        const restoredIds = new Set();
-        states[key].items = data.scenes[key]
-          .filter(
-            (i) =>
-              foodById[i.id] &&
-              [i.x, i.y, i.size, i.angle].every(Number.isFinite),
-          )
-          .slice(0, 150)
-          .map((i) => {
-            const itemUid = typeof i.uid === "string" && i.uid.length > 0 &&
-              i.uid.length <= 128 && !restoredIds.has(i.uid) ? i.uid : uid();
-            restoredIds.add(itemUid);
-            return {
-              uid: itemUid,
-              id: i.id,
-              x: clamp(i.x, 0, 1),
-              y: clamp(i.y, 0, 1),
-              size: clamp(i.size, 0.03, 0.9),
-              angle: normalizeAngle(i.angle),
-            };
-          });
-      }
-    } catch {
-      /* Ignore invalid or inaccessible browser storage. */
-    }
+  // Every page load starts an independent anonymous session. No draft restoration.
+  const sessionId = uid();
+  const editable = () => ready && !state().submitted;
+  function updateProgress() {
+    const count = Object.values(states).filter((s) => s.submitted).length;
+    $("experimentProgress").textContent =
+      count === 2 ? t("completed") : t("progress", { count });
+    $("saveStatus").textContent = state().submitted
+      ? t("submittedStatus")
+      : t("draftStatus");
+    document.querySelectorAll("[data-portrait]").forEach((b) => {
+      b.querySelector("span").textContent =
+        portraitName(b.dataset.portrait) +
+        (states[b.dataset.portrait].submitted ? " ✓" : "");
+    });
   }
 
   // History
@@ -105,97 +69,16 @@
     draw();
     updateControls();
     updateLayers();
-    save();
+    updateProgress();
+    updateSubmission();
   }
 
   // Asset loading and canvas rendering
-  function loadImage(url) {
-    return new Promise((resolve, reject) => {
-      const im = new Image();
-      im.onload = () => resolve(im);
-      im.onerror = () => reject(new Error(`Could not load ${url}`));
-      im.src = url;
-    });
-  }
-  function analyzeImage(image) {
-    const c = document.createElement("canvas");
-    c.width = image.naturalWidth;
-    c.height = image.naturalHeight;
-    const g = c.getContext("2d", { willReadFrequently: true });
-    g.drawImage(image, 0, 0);
-    const pixels = g.getImageData(0, 0, c.width, c.height).data;
-    let minX = c.width,
-      minY = c.height,
-      maxX = 0,
-      maxY = 0;
-    for (let y = 0; y < c.height; y++)
-      for (let x = 0; x < c.width; x++)
-        if (pixels[(y * c.width + x) * 4 + 3] > 64) {
-          minX = Math.min(minX, x);
-          maxX = Math.max(maxX, x);
-          minY = Math.min(minY, y);
-          maxY = Math.max(maxY, y);
-        }
-    const box = {
-      x: Math.max(0, minX - 2),
-      y: Math.max(0, minY - 2),
-      w: Math.min(c.width, maxX + 3) - Math.max(0, minX - 2),
-      h: Math.min(c.height, maxY + 3) - Math.max(0, minY - 2),
-    };
-    return { image, box, pixels, sourceWidth: c.width };
-  }
   function dimensions(item) {
-    const { box } = assets.get(item.id);
-    const longest = item.size * canvas.width;
-    return {
-      w: (longest * box.w) / Math.max(box.w, box.h),
-      h: (longest * box.h) / Math.max(box.w, box.h),
-    };
-  }
-  function imageToCanvas(g, item) {
-    const a = assets.get(item.id);
-    if (!a) return;
-    const { w, h } = dimensions(item);
-    g.save();
-    g.translate(item.x * canvas.width, item.y * canvas.height);
-    g.rotate((item.angle * Math.PI) / 180);
-    g.drawImage(
-      a.image,
-      a.box.x,
-      a.box.y,
-      a.box.w,
-      a.box.h,
-      -w / 2,
-      -h / 2,
-      w,
-      h,
-    );
-    g.restore();
+    return renderer.dimensions(item, canvas.width);
   }
   function drawScene(g) {
-    if (!ready) return;
-    g.clearRect(0, 0, canvas.width, canvas.height);
-    // Original pixels preserve all backdrop, clothing, color and registration.
-    const original = assets.get(active + "-original");
-    g.drawImage(original, 0, 0, canvas.width, canvas.height);
-    // Use generated inpainting only inside the removed face, never on garments.
-    g.save();
-    g.clip(paths[active].face);
-    if (active === "euro") g.filter = "saturate(0.25) brightness(0.8)";
-    g.drawImage(
-      assets.get(active === "euro" ? "euro-background" : active + "-face-fill"),
-      0,
-      0,
-      canvas.width,
-      canvas.height,
-    );
-    g.restore();
-    for (const item of state().items) imageToCanvas(g, item);
-    // Only the original hat is in front; food may cover the collar and clothing.
-    g.save();
-    g.clip(paths[active].hat);
-    g.drawImage(original, 0, 0, canvas.width, canvas.height);
-    g.restore();
+    if (ready) renderer.drawScene(g, active, state().items);
   }
   function screenUnit() {
     return canvas.width / Math.max(1, canvas.getBoundingClientRect().width);
@@ -206,28 +89,36 @@
       pad = 6 * u;
     return { w: d.w + pad * 2, h: d.h + pad * 2, u };
   }
+  function updateSelectionHandles(item) {
+    for (const id of [
+      "deleteHandle",
+      "flipHorizontalHandle",
+      "flipVerticalHandle",
+    ]) {
+      $(id).hidden = !item || !editable();
+    }
+  }
+  function positionHandle(id, item, x, y, u) {
+    const angle = (item.angle * Math.PI) / 180;
+    const px =
+      item.x * canvas.width + x * Math.cos(angle) - y * Math.sin(angle);
+    const py =
+      item.y * canvas.height + x * Math.sin(angle) + y * Math.cos(angle);
+    $(id).style.left =
+      (clamp(px, 14 * u, canvas.width - 14 * u) / canvas.width) * 100 + "%";
+    $(id).style.top =
+      (clamp(py, 14 * u, canvas.height - 14 * u) / canvas.height) * 100 + "%";
+  }
   function draw() {
     if (!ready) return;
     drawScene(ctx);
     const item = selectedItem();
-    $("deleteHandle").hidden = !item;
+    updateSelectionHandles(item);
     if (item) {
       const { w, h, u } = selectionGeometry(item);
-      const angle = (item.angle * Math.PI) / 180;
-      const cornerX =
-        item.x * canvas.width +
-        (w / 2) * Math.cos(angle) +
-        (h / 2) * Math.sin(angle);
-      const cornerY =
-        item.y * canvas.height +
-        (w / 2) * Math.sin(angle) -
-        (h / 2) * Math.cos(angle);
-      $("deleteHandle").style.left =
-        (clamp(cornerX, 14 * u, canvas.width - 14 * u) / canvas.width) * 100 +
-        "%";
-      $("deleteHandle").style.top =
-        (clamp(cornerY, 14 * u, canvas.height - 14 * u) / canvas.height) * 100 +
-        "%";
+      positionHandle("deleteHandle", item, w / 2, -h / 2, u);
+      positionHandle("flipHorizontalHandle", item, -w / 2, -h / 2, u);
+      positionHandle("flipVerticalHandle", item, -w / 2, h / 2, u);
       ctx.save();
       ctx.translate(item.x * canvas.width, item.y * canvas.height);
       ctx.rotate((item.angle * Math.PI) / 180);
@@ -253,25 +144,36 @@
       ctx.strokeRect(w / 2 - 5 * u, h / 2 - 5 * u, 10 * u, 10 * u);
       ctx.restore();
     }
-    $("objectCount").textContent =
-      `${state().items.length} ${state().items.length === 1 ? "item" : "items"}`;
+    $("objectCount").textContent = t(
+      state().items.length === 1 ? "itemOne" : "itemMany",
+      { count: state().items.length },
+    );
   }
 
   // Selection and portrait controls
   function updateControls() {
     const i = selectedItem();
-    $("transformControls").disabled = !i;
-    $("selectedName").textContent = i ? foodById[i.id].name : "No selection";
+    $("transformControls").disabled = !i || !editable();
+    $("selectedName").textContent = i ? foodName(i.id) : t("noSelection");
+    $("flipHorizontal").setAttribute("aria-pressed", String(!!i?.flipX));
+    $("flipHorizontalHandle").setAttribute("aria-pressed", String(!!i?.flipX));
+    $("flipVertical").setAttribute("aria-pressed", String(!!i?.flipY));
+    $("flipVerticalHandle").setAttribute("aria-pressed", String(!!i?.flipY));
     if (i) {
       $("size").value = i.size * 100;
       $("sizeValue").textContent = `${Math.round(i.size * 100)}%`;
       $("rotation").value = Math.round(i.angle);
       $("rotationValue").textContent = `${Math.round(i.angle)}°`;
     }
-    $("undo").disabled = !state().undo.length;
-    $("redo").disabled = !state().redo.length;
-    $("clear").disabled = !state().items.length;
-    $("export").disabled = !ready || savingSnapshot;
+    $("undo").disabled = !editable() || !state().undo.length;
+    $("redo").disabled = !editable() || !state().redo.length;
+    $("clear").disabled = !editable() || !state().items.length;
+    $("export").disabled = !editable();
+    $("export").textContent = state().submitted ? t("submitted") : t("submit");
+    document
+      .querySelectorAll(".food-card")
+      .forEach((b) => (b.disabled = !editable()));
+    updateSelectionHandles(i);
     if (i) {
       const index = state().items.indexOf(i);
       $("backward").disabled = index === 0;
@@ -285,7 +187,7 @@
     state().items.forEach((i, index) => {
       const b = document.createElement("button");
       b.className = "layer-chip" + (i.uid === selected ? " active" : "");
-      b.textContent = `${foodById[i.id].name} ${index + 1}`;
+      b.textContent = `${foodName(i.id)} ${index + 1}`;
       b.setAttribute("aria-pressed", String(i.uid === selected));
       b.addEventListener("click", () => {
         selected = i.uid;
@@ -297,14 +199,7 @@
     });
   }
   function addFood(id, point) {
-    if (!ready) {
-      toast("Assets are still loading.");
-      return;
-    }
-    if (state().items.length >= 150) {
-      toast("Maximum 150 items per canvas.");
-      return;
-    }
+    if (!editable()) return;
     const f = foodById[id];
     checkpoint();
     const [x, y] = point || portraits[active].center;
@@ -315,6 +210,8 @@
       y: clamp(y, 0, 1),
       size: f.size,
       angle: 0,
+      flipX: false,
+      flipY: false,
     };
     state().items.push(item);
     selected = item.uid;
@@ -330,8 +227,9 @@
     canvas.height = p.h;
     document.documentElement.style.setProperty("--ratio", `${p.w}/${p.h}`);
     $("original").src = `assets/portraits/${id}-original.png`;
-    $("original").alt = p.name + " — original";
-    $("portraitName").textContent = p.name;
+    $("original").alt = t("originalAlt", { name: portraitName(active) });
+    $("portraitName").textContent =
+      portraitName(active) + (p.artist ? ` · ${t("artist." + active)}` : "");
     document.querySelectorAll("[data-portrait]").forEach((b) => {
       b.classList.toggle("active", b.dataset.portrait === id);
       b.setAttribute("aria-pressed", String(b.dataset.portrait === id));
@@ -370,12 +268,19 @@
       { w, h } = dimensions(item);
     if (Math.abs(q.x) > w / 2 || Math.abs(q.y) > h / 2) return false;
     const a = assets.get(item.id),
-      sx = Math.floor(a.box.x + (q.x / w + 0.5) * a.box.w),
-      sy = Math.floor(a.box.y + (q.y / h + 0.5) * a.box.h);
+      // Invert the image reflection after undoing its rotation.
+      sx = Math.min(
+        a.box.x + a.box.w - 1,
+        Math.floor(a.box.x + ((item.flipX ? -q.x : q.x) / w + 0.5) * a.box.w),
+      ),
+      sy = Math.min(
+        a.box.y + a.box.h - 1,
+        Math.floor(a.box.y + ((item.flipY ? -q.y : q.y) / h + 0.5) * a.box.h),
+      );
     return !a.pixels || a.pixels[(sy * a.sourceWidth + sx) * 4 + 3] > 35;
   }
   canvas.addEventListener("pointerdown", (e) => {
-    if (!ready || e.button !== 0) return;
+    if (!editable() || e.button !== 0) return;
     e.preventDefault();
     canvas.focus();
     const p = point(e);
@@ -411,7 +316,7 @@
     updateLayers();
   });
   canvas.addEventListener("pointermove", (e) => {
-    if (!ready) return;
+    if (!editable()) return;
     const p = point(e);
     if (!gesture) {
       const m = handleAt(p, selectedItem());
@@ -497,17 +402,18 @@
       const b = document.createElement("button");
       b.className = "food-card";
       b.dataset.food = f.id;
-      b.setAttribute("aria-label", "Add " + f.name);
+      b.setAttribute("aria-label", t("addFood", { name: foodName(f.id) }));
       b.disabled = true;
       const im = document.createElement("img");
       im.src = `assets/foods/${f.id}.png`;
       im.alt = "";
       im.draggable = false;
       const label = document.createElement("span");
-      label.textContent = f.name;
+      label.textContent = foodName(f.id);
       b.append(im, label);
       b.addEventListener("pointerdown", (e) => {
-        if (e.button !== 0 || !ready) return;
+        // On narrow screens, native scrolling browses foods; a click adds one.
+        if (mobileLayout.matches || e.button !== 0 || !editable()) return;
         libraryDrag = {
           id: f.id,
           pointer: e.pointerId,
@@ -577,6 +483,7 @@
 
   // Editing actions and keyboard shortcuts
   function remove() {
+    if (!editable()) return;
     if (!selectedItem()) return;
     checkpoint();
     state().items = state().items.filter((i) => i.uid !== selected);
@@ -584,8 +491,9 @@
     commit();
   }
   function duplicate() {
+    if (!editable()) return;
     const item = selectedItem();
-    if (!item || state().items.length >= 150) return;
+    if (!item) return;
     checkpoint();
     const copy = {
       ...item,
@@ -597,7 +505,16 @@
     selected = copy.uid;
     commit();
   }
+  function flip(axis) {
+    if (!editable()) return;
+    const item = selectedItem();
+    if (!item) return;
+    checkpoint();
+    item[axis] = !item[axis];
+    commit();
+  }
   function reorder(direction) {
+    if (!editable()) return;
     const i = state().items.findIndex((i) => i.uid === selected),
       j = i + direction;
     if (i < 0 || j < 0 || j >= state().items.length) return;
@@ -606,6 +523,7 @@
     commit();
   }
   function undo() {
+    if (!editable()) return;
     if (!state().undo.length) return;
     state().redo.push(clone(state().items));
     state().items = state().undo.pop();
@@ -613,6 +531,7 @@
     commit();
   }
   function redo() {
+    if (!editable()) return;
     if (!state().redo.length) return;
     state().undo.push(clone(state().items));
     state().items = state().redo.pop();
@@ -622,6 +541,7 @@
   for (const id of ["size", "rotation"]) {
     let editing = false;
     $(id).addEventListener("input", () => {
+      if (!editable()) return;
       const i = selectedItem();
       if (!i) return;
       if (!editing) {
@@ -632,7 +552,6 @@
       else i.angle = Number($(id).value);
       draw();
       updateControls();
-      save();
     });
     $(id).addEventListener("change", () => {
       editing = false;
@@ -643,11 +562,16 @@
   $("delete").addEventListener("click", remove);
   $("deleteHandle").addEventListener("click", remove);
   $("duplicate").addEventListener("click", duplicate);
+  $("flipHorizontal").addEventListener("click", () => flip("flipX"));
+  $("flipHorizontalHandle").addEventListener("click", () => flip("flipX"));
+  $("flipVertical").addEventListener("click", () => flip("flipY"));
+  $("flipVerticalHandle").addEventListener("click", () => flip("flipY"));
   $("forward").addEventListener("click", () => reorder(1));
   $("backward").addEventListener("click", () => reorder(-1));
   $("undo").addEventListener("click", undo);
   $("redo").addEventListener("click", redo);
   $("clear").addEventListener("click", () => {
+    if (!editable()) return;
     if (!state().items.length) return;
     checkpoint();
     state().items = [];
@@ -660,6 +584,7 @@
       b.addEventListener("click", () => selectPortrait(b.dataset.portrait)),
     );
   document.addEventListener("keydown", (e) => {
+    if (!editable()) return;
     if (e.target.matches("input,textarea,select")) return;
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
       e.preventDefault();
@@ -708,114 +633,171 @@
       i.y = clamp(i.y + (dirs[e.key][1] * step) / canvas.height, 0, 1);
       draw();
       updateControls();
-      save();
     }
   });
 
-  // Capture JSON and pixels synchronously before the asynchronous save request.
-  $("export").addEventListener("click", async () => {
-    if (!ready || savingSnapshot) return;
-    if (location.protocol === "file:") {
-      toast("Open Start FoodFace.command to save JSON + PNG.");
-      return;
+  // Results stay in this page until the participant copies and shares them.
+  function updateSubmission() {
+    $("participantFields").disabled = !!participant;
+    const result = state().result;
+    $("jsonResult").hidden = !result;
+    $("resultJson").value = result || "";
+    $("copyStatus").textContent = "";
+  }
+  function readParticipant() {
+    if (participant) return participant;
+    $("nationality").value = $("nationality").value.trim();
+    for (const id of ["gender", "age", "nationality"]) {
+      const field = $(id);
+      field.setCustomValidity("");
+      if (!field.validity.valid) field.setCustomValidity(t(id + "Required"));
     }
-    savingSnapshot = true;
-    $("export").textContent = "Saving…";
-    updateControls();
-    const status = $("snapshotStatus");
-    status.hidden = false;
-    status.textContent = "Saving JSON + PNG to this computer…";
-    const output = document.createElement("canvas");
-    output.width = canvas.width;
-    output.height = canvas.height;
+    if (!$("participantForm").reportValidity()) return null;
+    return {
+      gender: $("gender").value,
+      age: Number($("age").value),
+      nationality: $("nationality").value,
+      feedback: $("feedback").value.trim(),
+    };
+  }
+  for (const id of ["gender", "age", "nationality"]) {
+    $(id).addEventListener("input", () => $(id).setCustomValidity(""));
+  }
+  $("participantForm").addEventListener("submit", (event) =>
+    event.preventDefault(),
+  );
+  $("export").addEventListener("click", () => {
+    if (editable() && readParticipant()) $("submitDialog").showModal();
+  });
+  $("cancelSubmission").addEventListener("click", () =>
+    $("submitDialog").close(),
+  );
+  $("confirmSubmission").addEventListener("click", () => {
+    $("submitDialog").close();
+    submitPortrait();
+  });
+  function submitPortrait() {
+    if (!editable()) return;
+    const details = readParticipant();
+    if (!details) return;
+    const result = {
+      schemaVersion: 1,
+      assetVersion: "1",
+      rendererVersion: "1",
+      portraitId: active,
+      canvas: { width: canvas.width, height: canvas.height },
+      items: clone(state().items),
+      demographics: {
+        gender: details.gender,
+        age: details.age,
+        nationality: details.nationality,
+      },
+      feedback: details.feedback,
+      experiment: {
+        actorType: "human",
+        sessionId,
+        trialId: uid(),
+        status: "submitted",
+        submittedAt: new Date().toISOString(),
+        interfaceLanguage: i18n.language,
+      },
+      researchNotice: i18n.t("notice", {}, "en"),
+    };
+    // Scene fields are identical to agent snapshots; metadata does not affect pixels.
+    state().result = JSON.stringify(result, null, 2);
+    participant = { ...details };
+    state().submitted = true;
+    state().undo = [];
+    state().redo = [];
+    selected = null;
+    gesture = null;
+    libraryDrag = null;
+    $("dragGhost").hidden = true;
+    $("canvasFrame").classList.remove("drop-active");
+    commit();
+    $("jsonResult").scrollIntoView({ block: "nearest" });
+    toast(t("jsonReady"));
+  }
+  $("copyJson").addEventListener("click", async () => {
+    const result = state().result;
+    if (!result) return;
+    const portrait = active;
     try {
-      const scene = {
-        schemaVersion: 1,
-        assetVersion: "1",
-        rendererVersion: "1",
-        portraitId: active,
-        canvas: { width: canvas.width, height: canvas.height },
-        items: clone(state().items),
-      };
-      drawScene(output.getContext("2d"));
-      const png = output.toDataURL("image/png").split(",")[1];
-      const response = await fetch("/api/snapshots", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scene, png }),
-      });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Save failed.");
-      status.replaceChildren(document.createTextNode(`Saved in ${result.directory} · `));
-      for (const [label, path] of [["JSON", result.json], ["PNG", result.png]]) {
-        const link = document.createElement("a");
-        link.textContent = label;
-        link.href = path;
-        link.download = path.split("/").pop();
-        status.append(link, document.createTextNode(" "));
+      await navigator.clipboard.writeText(result);
+      if (active === portrait) $("copyStatus").textContent = t("copied");
+    } catch {
+      // Clipboard permissions vary; keep the complete JSON available for manual copying.
+      if (active !== portrait) return;
+      $("resultJson").focus();
+      $("resultJson").select();
+      let copied = false;
+      try {
+        copied = document.execCommand("copy");
+      } catch {
+        /* Use manual copy below. */
       }
-      toast("JSON + PNG saved");
-    } catch (error) {
-      status.textContent = `Save failed. ${error.message} If needed, restart Start FoodFace.command and try again.`;
-      toast("Save failed. Your browser draft is still available if autosave succeeded.");
-    } finally {
-      savingSnapshot = false;
-      $("export").textContent = "Save JSON + PNG";
-      updateControls();
+      $("copyStatus").textContent = copied ? t("copied") : t("manualCopy");
     }
+  });
+
+  function changeLanguage(language) {
+    i18n.apply(language);
+    $("toast").classList.remove("visible");
+    for (const id of ["gender", "age", "nationality"])
+      $(id).setCustomValidity("");
+    $("original").alt = t("originalAlt", { name: portraitName(active) });
+    $("portraitName").textContent =
+      portraitName(active) +
+      (portraits[active].artist ? ` · ${t("artist." + active)}` : "");
+    document.querySelectorAll("[data-food]").forEach((button) => {
+      const name = foodName(button.dataset.food);
+      button.querySelector("span").textContent = name;
+      button.setAttribute("aria-label", t("addFood", { name }));
+    });
+    commit();
+  }
+  document.querySelectorAll("[data-language]").forEach((button) => {
+    button.addEventListener("click", () =>
+      changeLanguage(button.dataset.language),
+    );
   });
 
   // Layout and initialization
-  new ResizeObserver(() => {
-    if (ready) draw();
+  const library = document.querySelector(".library");
+  function updateLibraryLayout() {
+    if (libraryDrag)
+      endLibraryDrag({ pointerId: libraryDrag.pointer, type: "pointercancel" });
+    if (mobileLayout.matches)
+      document.querySelector(".canvas-actions").after(library);
+    else document.querySelector(".studio").append(library);
+    updateLibraryHeight();
+  }
+  function updateLibraryHeight() {
     const h = $("canvasFrame").getBoundingClientRect().height;
     $("foodGrid").style.maxHeight =
-      window.innerWidth <= 560 ? "210px" : Math.max(220, h - 34) + "px";
+      mobileLayout.matches ? "none" : Math.max(220, h - 34) + "px";
+  }
+  mobileLayout.addEventListener("change", updateLibraryLayout);
+  updateLibraryLayout();
+  new ResizeObserver(() => {
+    if (ready) draw();
+    updateLibraryHeight();
   }).observe($("canvasFrame"));
   async function init() {
+    i18n.apply("en");
     buildLibrary();
-    restore();
     selectPortrait(active);
     try {
-      await Promise.all([
-        ...foods.map(async (f) => {
-          const im = await loadImage(`assets/foods/${f.id}.png`);
-          try {
-            assets.set(f.id, analyzeImage(im));
-          } catch {
-            assets.set(f.id, {
-              image: im,
-              box: { x: 0, y: 0, w: im.naturalWidth, h: im.naturalHeight },
-              pixels: null,
-              sourceWidth: im.naturalWidth,
-            });
-          }
-        }),
-        ...Object.keys(portraits).map(async (id) =>
-          assets.set(
-            id + "-original",
-            await loadImage(`assets/portraits/${id}-original.png`),
-          ),
-        ),
-        loadImage("assets/portraits/zhu-face-fill.png").then((im) =>
-          assets.set("zhu-face-fill", im),
-        ),
-        loadImage("assets/portraits/euro-background.png").then((im) =>
-          assets.set("euro-background", im),
-        ),
-      ]);
+      await renderer.ready;
       ready = true;
       $("loading").hidden = true;
       document
         .querySelectorAll(".food-card")
         .forEach((b) => (b.disabled = false));
       commit();
-      if (location.protocol === "file:")
-        toast("Open Start FoodFace.command to save and export your work.");
     } catch (error) {
-      $("loading").textContent =
-        "Could not load assets. Open Start FoodFace.command and try again.";
-      toast(error.message);
+      $("loading").textContent = t("loadError");
+      toast(t("loadError"));
       console.error(error);
     }
   }

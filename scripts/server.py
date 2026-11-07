@@ -20,12 +20,12 @@ import webbrowser
 ROOT = Path(__file__).resolve().parent.parent
 MAX_BODY = 32 * 1024 * 1024
 PORTRAITS = {'zhu': (1450, 1524), 'euro': (1312, 1604)}
+SUBMISSION_LOCK = threading.Lock()
 
 
-def validate_payload(payload, food_ids):
-    if not isinstance(payload, dict) or not isinstance(payload.get('scene'), dict):
+def validate_scene(scene, food_ids):
+    if not isinstance(scene, dict):
         raise ValueError('Missing scene data.')
-    scene = payload['scene']
     if (scene.get('schemaVersion') != 1 or scene.get('assetVersion') != '1'
             or scene.get('rendererVersion') != '1'):
         raise ValueError('Unsupported scene version.')
@@ -36,8 +36,8 @@ def validate_payload(payload, food_ids):
     if scene.get('canvas') != {'width': width, 'height': height}:
         raise ValueError('Incorrect canvas dimensions.')
     items = scene.get('items')
-    if not isinstance(items, list) or len(items) > 150:
-        raise ValueError('A scene must contain at most 150 items.')
+    if not isinstance(items, list):
+        raise ValueError('Scene items must be a list.')
     seen = set()
     for item in items:
         if not isinstance(item, dict):
@@ -53,6 +53,22 @@ def validate_payload(payload, food_ids):
             if (type(value) not in (int, float) or not math.isfinite(value)
                     or not low <= value <= high):
                 raise ValueError(f'Invalid item {key}.')
+        for key in ('flipX', 'flipY'):
+            if key in item and type(item[key]) is not bool:
+                raise ValueError(f'Invalid item {key}.')
+    clean_scene = {key: scene[key] for key in
+                   ('schemaVersion', 'assetVersion', 'rendererVersion', 'portraitId', 'canvas')}
+    clean_scene['items'] = [
+        {key: item[key] for key in ('uid', 'id', 'x', 'y', 'size', 'angle', 'flipX', 'flipY')
+         if key in item} for item in items]
+    return clean_scene
+
+
+def validate_payload(payload, food_ids):
+    if not isinstance(payload, dict):
+        raise ValueError("Missing scene data.")
+    clean_scene = validate_scene(payload.get("scene"), food_ids)
+    width, height = PORTRAITS[clean_scene["portraitId"]]
     try:
         png = base64.b64decode(payload['png'], validate=True)
     except (KeyError, ValueError, TypeError, binascii.Error) as error:
@@ -61,16 +77,12 @@ def validate_payload(payload, food_ids):
             or struct.unpack('>II', png[16:24]) != (width, height)
             or png[-12:] != b'\x00\x00\x00\x00IEND\xaeB`\x82'):
         raise ValueError('PNG dimensions or format do not match the scene.')
-    clean_scene = {key: scene[key] for key in
-                   ('schemaVersion', 'assetVersion', 'rendererVersion', 'portraitId', 'canvas')}
-    clean_scene['items'] = [{key: item[key] for key in ('uid', 'id', 'x', 'y', 'size', 'angle')}
-                            for item in items]
     return clean_scene, png
 
 
-def save_snapshot(save_root, scene, png):
+def save_snapshot(save_root, scene, png, *, snapshot_id=None):
     """Publish the pair together; failed writes never expose a partial snapshot."""
-    snapshot_id = str(uuid.uuid4())
+    snapshot_id = snapshot_id or str(uuid.uuid4())
     saved_at = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     stem = f"FoodFace-{scene['portraitId']}-{snapshot_id}"
     document = {**scene, 'snapshotId': snapshot_id, 'savedAt': saved_at,
@@ -87,6 +99,30 @@ def save_snapshot(save_root, scene, png):
         raise
     return {'snapshotId': snapshot_id, 'directory': f'result-data/{stem}',
             'json': f'result-data/{stem}/{stem}.json', 'png': f'result-data/{stem}/{stem}.png'}
+
+
+class SubmissionConflict(ValueError):
+    def __init__(self, document):
+        super().__init__('This portrait has already been submitted and cannot be changed.')
+        self.document = document
+
+
+def save_submission(save_root, scene, png, session_id):
+    """One immutable result per portrait/session; identical retries reuse the receipt."""
+    trial_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f'foodface:human:{session_id}:{scene["portraitId"]}'))
+    stem = f"FoodFace-{scene['portraitId']}-{trial_id}"
+    scene = {**scene, 'experiment': {'actorType': 'human', 'sessionId': session_id,
+                                   'trialId': trial_id, 'status': 'submitted'}}
+    with SUBMISSION_LOCK:
+        existing = save_root / stem / (stem + '.json')
+        if existing.exists():
+            document = json.loads(existing.read_text(encoding='utf-8'))
+            if (any(document.get(key) != value for key, value in scene.items())
+                    or document['image']['sha256'] != hashlib.sha256(png).hexdigest()):
+                raise SubmissionConflict(document)
+            return {'snapshotId': trial_id, 'directory': f'result-data/{stem}',
+                    'json': f'result-data/{stem}/{stem}.json', 'png': f'result-data/{stem}/{stem}.png'}
+        return save_snapshot(save_root, scene, png, snapshot_id=trial_id)
 
 
 class StudioHandler(SimpleHTTPRequestHandler):
@@ -106,7 +142,7 @@ class StudioHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        if self.path != '/api/snapshots':
+        if self.path not in ('/api/snapshots', '/api/submissions'):
             self.reply(404, {'error': 'Unknown endpoint.'})
             return
         # Only this local studio may write; reject cross-site browser requests.
@@ -126,11 +162,21 @@ class StudioHandler(SimpleHTTPRequestHandler):
                 return
             payload = json.loads(self.rfile.read(length))
             scene, png = validate_payload(payload, self.food_ids)
+            session_id = payload.get('sessionId')
+            if self.path == '/api/submissions':
+                if not isinstance(session_id, str) or str(uuid.UUID(session_id)) != session_id:
+                    raise ValueError('Invalid session ID.')
         except (ValueError, OverflowError, RecursionError):
-            self.reply(400, {'error': 'Invalid scene or PNG. Please reload and try again.'})
+            self.reply(400, {'error': 'Invalid scene, PNG or session. Keep this page open and try again.'})
             return
         try:
-            result = save_snapshot(self.save_root, scene, png)
+            if self.path == '/api/submissions':
+                result = save_submission(self.save_root, scene, png, session_id)
+            else:
+                result = save_snapshot(self.save_root, scene, png)
+        except SubmissionConflict as error:
+            self.reply(409, {'error': str(error), 'scene': error.document})
+            return
         except OSError:
             self.reply(500, {'error': 'Could not write files. Check disk space and folder permissions.'})
             return
