@@ -1,0 +1,24 @@
+{
+  "tool": "OpenAI built-in image_gen",
+  "rendering": "Hat and garment colors/positions come directly from original uploaded pixels. Generated images are used only within the face removal region. Render order: original portrait, inpainted face region, user food, clipped original hat.",
+  "originals": ["zhu-original.png", "euro-original.png"],
+  "facePaths": "../js/portrait-paths.js",
+  "fill": {
+    "zhu": {
+      "file": "zhu-face-fill.png",
+      "prompt": "Precise inpainting edit of the supplied original Chinese portrait. Remove ONLY the face, ears, exposed neck skin and facial features between the black hat and the dark collar. Replace all of that skin area seamlessly with the surrounding ORIGINAL muted golden-brown silk background, matching the exact local ochre hue, brightness, low-resolution woven fabric texture, aged mottling and softness. The result should look like an empty head opening showing the painting's backdrop. KEEP the black hat, gold badge, red robe, collar, entire exterior backdrop, original framing and original image coordinates EXACTLY unchanged. Do not sharpen, beautify, recolor, enhance, relight, move, enlarge or redraw clothing or hat. No new anatomy, no black head silhouette, no transparency, no placeholder, no drawn outline. Preserve aspect ratio 1450:1524 and full canvas. We will use ONLY the newly filled facial region from this output over the original pixels in the webpage, so focus on seamlessly matching that background fill to the adjacent original brown background. Output one opaque image."
+    },
+    "euro": {
+      "file": "euro-background.png",
+      "prompt": "Create a clean background plate by editing the supplied historical oil portrait. Keep the full original aspect ratio 1312:1604, all original existing exterior BACKGROUND colors and texture: dark warm brown umber oil painting on aged canvas, subtle mottled dark patches and muted golden-brown grain, slightly lighter around upper-right and dark near lower area. REMOVE the entire person (face, hat, feathers, ruff, black clothes, chains) and seamlessly inpaint their former area with the SAME continuous original dark brown painted backdrop. No objects remain. Not a new scene or a modern flat color. Entire image opaque, no transparency or holes. No person, hat, clothes, lettering, decorations or vignette rings. This background will appear behind the separately extracted clothes and a fruit collage, maintaining the original portrait's background atmosphere. Output one complete background image in original framing.",
+      "canvasFilter": "saturate(0.25) brightness(0.8)",
+      "note": "Clean background used to avoid generated collar remnants."
+    }
+  },
+  "unusedDrafts": [
+    "drafts/zhu-foreground.png",
+    "drafts/euro-foreground.png",
+    "drafts/zhu-background.png",
+    "drafts/euro-face-fill.png"
+  ]
+}

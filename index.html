@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f3ec" />
+    <meta
+      name="description"
+      content="Create portrait collages with food in the FoodFace studio."
+    />
+    <title>FoodFace — Portrait Collage Studio</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+    <script src="assets/js/catalog.js" defer></script>
+    <script src="assets/js/portrait-paths.js" defer></script>
+    <script src="assets/js/app.js" defer></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <h1 class="brand">FoodFace</h1>
+      <div class="portrait-picker" role="group" aria-label="Choose a portrait">
+        <button
+          class="portrait-option active"
+          data-portrait="zhu"
+          aria-pressed="true"
+        >
+          <img src="assets/portraits/zhu-original.png" alt="" />
+          <span>Zhu Yuanzhang</span>
+        </button>
+        <button
+          class="portrait-option"
+          data-portrait="euro"
+          aria-pressed="false"
+        >
+          <img src="assets/portraits/euro-original.png" alt="" />
+          <span>European portrait</span>
+        </button>
+      </div>
+    </header>
+    <main>
+      <section class="studio" aria-label="Portrait collage studio">
+        <article class="portrait-panel original-panel">
+          <div class="panel-heading">
+            <h2>Original</h2>
+            <span id="portraitName" hidden></span>
+          </div>
+          <div class="picture-frame">
+            <img
+              id="original"
+              src="assets/portraits/zhu-original.png"
+              alt="Zhu Yuanzhang — original"
+            />
+          </div>
+        </article>
+        <article class="portrait-panel collage-panel">
+          <div class="panel-heading">
+            <h2>Collage</h2>
+            <span class="count-pill" id="objectCount">0 items</span>
+          </div>
+          <div class="picture-frame canvas-frame" id="canvasFrame">
+            <canvas
+              id="collage"
+              width="1450"
+              height="1524"
+              tabindex="0"
+              aria-label="Collage canvas. Drag to move, use the lower-right handle to resize, and the top handle to rotate."
+            ></canvas>
+            <button
+              id="deleteHandle"
+              class="delete-handle"
+              aria-label="Delete selected food"
+              title="Delete"
+              hidden
+            >
+              ×
+            </button>
+            <div class="loading" id="loading">Loading…</div>
+          </div>
+          <div class="canvas-actions">
+            <div class="button-group">
+              <button
+                id="undo"
+                class="icon-button"
+                title="Undo (Cmd/Ctrl+Z)"
+                aria-label="Undo"
+                disabled
+              >
+                ↶
+              </button>
+              <button
+                id="redo"
+                class="icon-button"
+                title="Redo (Cmd/Ctrl+Shift+Z)"
+                aria-label="Redo"
+                disabled
+              >
+                ↷
+              </button>
+              <span class="toolbar-divider"></span>
+              <button id="clear" class="text-button" disabled>Clear</button>
+            </div>
+            <button id="export" class="export-button" disabled>
+              Save JSON + PNG
+            </button>
+          </div>
+        </article>
+        <aside class="library" aria-label="Food library">
+          <div class="library-heading"><h2>Food library</h2></div>
+          <div class="food-grid" id="foodGrid"></div>
+        </aside>
+      </section>
+      <section class="edit-strip" aria-label="Edit selected food">
+        <div class="selection-info">
+          <strong id="selectedName">No selection</strong>
+        </div>
+        <fieldset
+          id="transformControls"
+          aria-label="Transform selected food"
+          disabled
+        >
+          <label class="range-control" for="size">
+            Size
+            <input
+              id="size"
+              type="range"
+              min="3"
+              max="90"
+              step="0.5"
+              value="25"
+            />
+            <output id="sizeValue" for="size">25%</output>
+          </label>
+          <label class="range-control" for="rotation">
+            Rotation
+            <input
+              id="rotation"
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              value="0"
+            />
+            <output id="rotationValue" for="rotation">0°</output>
+          </label>
+          <div class="selection-actions">
+            <button id="backward" title="Move back one layer">Backward</button>
+            <button id="forward" title="Move forward one layer">Forward</button>
+            <button id="duplicate" title="Duplicate (Cmd/Ctrl+D)">
+              Duplicate
+            </button>
+            <button
+              id="delete"
+              class="delete-button"
+              title="Delete (Delete/Backspace)"
+            >
+              Delete
+            </button>
+          </div>
+        </fieldset>
+      </section>
+      <div class="layers-row">
+        <span>Layers</span>
+        <div
+          id="layerList"
+          class="layer-list"
+          role="group"
+          aria-label="Select food on the canvas"
+        ></div>
+        <span id="saveStatus" class="save-status" role="status"></span>
+      </div>
+      <p id="snapshotStatus" class="save-status" role="status" hidden></p>
+    </main>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div id="dragGhost" class="drag-ghost" hidden></div>
+  </body>
+</html>
