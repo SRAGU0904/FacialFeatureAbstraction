@@ -22,7 +22,7 @@ Create food collages that resemble each person and emphasize their distinctive f
 2. Click a food to add it, or drag it onto the canvas.
 3. Drag to move, use the lower-right handle to resize, or the top handle to rotate. Sliders allow precise adjustments.
 4. Use **Flip horizontal** or **Flip vertical** to mirror selected food; click again to undo that flip. Use **Backward**, **Forward**, **Duplicate**, **Delete**, **Clear**, undo and redo while editing. Select covered items in **Layers**.
-5. Read the research notice below the submission button and enter gender, age, and nationality. These details apply to both portraits and are fixed after the first submission.
+5. Read the research notice below the submission button and enter gender, age, and nationality. The form retains these details when switching portraits, so they only need to be entered once. You can update them before submitting the second portrait; each result keeps the details recorded at its own submission time.
 6. Select **Submit portrait** and confirm. The portrait is locked and its complete result JSON appears below the form. Use **Copy JSON**, then send it to the website developer yourself.
 7. Complete the other portrait and copy its result too. You can switch back to either submitted portrait to copy its JSON again.
 

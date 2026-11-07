@@ -197,6 +197,56 @@ class BrowserTests(unittest.TestCase):
                 finally:
                     page.close()
 
+    def test_participant_details_persist_and_can_change_for_second_portrait(self):
+        for first, second, change_details, width in (
+                ('zhu', 'euro', False, 1440), ('euro', 'zhu', True, 390)):
+            with self.subTest(first=first, change_details=change_details):
+                page = self.renderer.browser.new_page(viewport={'width': width, 'height': 1000})
+                try:
+                    page.goto(self.renderer.url + '/index.html')
+                    page.evaluate('() => window.FOODFACE_RENDERER.ready')
+                    page.locator(f'[data-portrait="{first}"]').click()
+                    page.locator('#gender').select_option('female')
+                    page.locator('#age').fill('23')
+                    page.locator('#nationality').fill('Test nationality')
+                    page.locator('#feedback').fill('First comment')
+                    page.locator('#export').click()
+                    page.locator('#confirmSubmission').click()
+                    original = page.locator('#resultJson').input_value()
+                    first_result = json.loads(original)
+
+                    page.locator(f'[data-portrait="{second}"]').click()
+                    page.locator('[data-language="zh"]').click()
+                    for field, value in (('gender', 'female'), ('age', '23'),
+                                         ('nationality', 'Test nationality'), ('feedback', 'First comment')):
+                        self.assertTrue(page.locator('#' + field).is_enabled())
+                        self.assertEqual(page.locator('#' + field).input_value(), value)
+                    self.assertIn('一共提供16种食物', page.locator('[data-i18n="taskRules"]').inner_text())
+                    expected = first_result['demographics'].copy()
+                    expected_feedback = first_result['feedback']
+                    if change_details:
+                        page.locator('#age').fill('')
+                        page.locator('#export').click()
+                        self.assertFalse(page.locator('#submitDialog').is_visible())
+                        self.assertFalse(page.locator('#jsonResult').is_visible())
+                        page.locator('#gender').select_option('male')
+                        page.locator('#age').fill('24')
+                        page.locator('#nationality').fill('Updated nationality')
+                        page.locator('#feedback').fill('Updated comment')
+                        expected = {'gender': 'male', 'age': 24, 'nationality': 'Updated nationality'}
+                        expected_feedback = 'Updated comment'
+                    page.locator('#export').click()
+                    page.locator('#confirmSubmission').click()
+                    second_result = json.loads(page.locator('#resultJson').input_value())
+                    self.assertEqual(second_result['demographics'], expected)
+                    self.assertEqual(second_result['feedback'], expected_feedback)
+                    self.assertEqual(second_result['experiment']['sessionId'], first_result['experiment']['sessionId'])
+                    page.locator(f'[data-portrait="{first}"]').click()
+                    self.assertEqual(page.locator('#resultJson').input_value(), original)
+                    self.assertTrue(page.locator('#export').is_disabled())
+                finally:
+                    page.close()
+
     def test_failed_write_does_not_consume_round_and_source_changes_stop_run(self):
         with tempfile.TemporaryDirectory() as directory:
             run = start_run(self.renderer, 'zhu', Path(directory))

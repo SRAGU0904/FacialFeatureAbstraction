@@ -67,21 +67,33 @@ img {
   letter-spacing: -1px;
 }
 .portrait-picker {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 480px;
   gap: 8px;
+}
+.portrait-selection {
+  margin-top: 16px;
+}
+.portrait-selection-label {
+  font-weight: 600;
 }
 .portrait-option {
   display: flex;
   gap: 9px;
   align-items: center;
-  padding: 6px 12px 6px 6px;
+  min-width: 0;
+  min-height: 60px;
+  padding: 8px;
   border: 1px solid var(--line);
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 13px;
+  text-align: left;
 }
 .portrait-option img {
-  width: 27px;
-  height: 34px;
+  width: 32px;
+  height: 42px;
+  flex-shrink: 0;
   object-fit: cover;
   border-radius: 2px;
 }
@@ -522,18 +534,6 @@ fieldset:disabled {
   }
   .brand {
     font-size: 21px;
-  }
-  .portrait-picker {
-    gap: 5px;
-  }
-  .portrait-option {
-    padding: 4px 6px 4px 4px;
-    gap: 5px;
-    font-size: 9px;
-  }
-  .portrait-option img {
-    width: 21px;
-    height: 29px;
   }
   main {
     padding: 18px 14px;

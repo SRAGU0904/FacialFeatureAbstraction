@@ -21,29 +21,6 @@
     <header class="site-header">
       <h1 class="brand">FoodFace</h1>
       <div class="header-controls">
-        <div
-          class="portrait-picker"
-          role="group"
-          aria-label="Choose a portrait"
-          data-i18n-aria-label="choosePortrait"
-        >
-          <button
-            class="portrait-option active"
-            data-portrait="zhu"
-            aria-pressed="true"
-          >
-            <img src="assets/portraits/zhu-original.png" alt="" />
-            <span data-i18n="portrait.zhu">Zhu Yuanzhang</span>
-          </button>
-          <button
-            class="portrait-option"
-            data-portrait="euro"
-            aria-pressed="false"
-          >
-            <img src="assets/portraits/euro-original.png" alt="" />
-            <span data-i18n="portrait.euro">Rudolf II</span>
-          </button>
-        </div>
         <div class="language-switch" role="group" aria-label="Language / 语言">
           <button
             type="button"
@@ -77,12 +54,38 @@
           what is distinctive about the person.
         </p>
         <p data-i18n="taskRules">
-          Complete both portraits. You may reuse any food item. You can move, rotate, flip and resize foods proportionally.
+          Complete both portraits. There are 16 food items available, and you may reuse any of them. You can move, rotate, flip and resize foods proportionally.
         </p>
         <p data-i18n="taskSubmit">
           Submit each of the two collages separately. You can edit freely before submitting. After completing a collage, enter your basic personal details in the form below and click “Submit portrait”. Submitting generates your result in JSON format. Before leaving, copy and send each portrait's result to the developer. Please note that refreshing starts a new session and clears the current content.
         </p>
         <p id="experimentProgress" role="status">0/2 portraits submitted. Complete both portraits in any order and submit each separately.</p>
+        <div class="portrait-selection">
+          <p class="portrait-selection-label" data-i18n="choosePortrait">Choose a portrait</p>
+          <div
+            class="portrait-picker"
+            role="group"
+            aria-label="Choose a portrait"
+            data-i18n-aria-label="choosePortrait"
+          >
+            <button
+              class="portrait-option active"
+              data-portrait="zhu"
+              aria-pressed="true"
+            >
+              <img src="assets/portraits/zhu-original.png" alt="" />
+              <span data-i18n="portrait.zhu">Zhu Yuanzhang</span>
+            </button>
+            <button
+              class="portrait-option"
+              data-portrait="euro"
+              aria-pressed="false"
+            >
+              <img src="assets/portraits/euro-original.png" alt="" />
+              <span data-i18n="portrait.euro">Rudolf II</span>
+            </button>
+          </div>
+        </div>
       </section>
       <section
         class="studio"
@@ -362,8 +365,9 @@
             </label>
           </fieldset>
           <p class="submission-hint" data-i18n="participantHint">
-            Complete the required fields before submitting. The same details apply
-            to both portraits and are fixed after the first submission.
+            Enter the required details once; they remain filled in when you switch
+            portraits. You can update them before submitting the second portrait.
+            Each result records the details at the time of submission.
           </p>
         </form>
         <button

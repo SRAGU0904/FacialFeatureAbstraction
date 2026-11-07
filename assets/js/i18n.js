@@ -8,7 +8,7 @@
       taskGoal:
         "Create a food-face collage through visual association. Use and combine the supplied foods freely to stand in for facial features and capture what is distinctive about the person.",
       taskRules:
-        "Complete both portraits. You may reuse any food item. You can move, rotate, flip and resize foods proportionally.",
+        "Complete both portraits. There are 16 food items available, and you may reuse any of them. You can move, rotate, flip and resize foods proportionally.",
       taskSubmit:
         "Submit each of the two collages separately. You can edit freely before submitting. After completing a collage, enter your basic personal details in the form below and click “Submit portrait”. Submitting generates your result in JSON format. Before leaving, copy and send each portrait's result to the developer. Please note that refreshing starts a new session and clears the current content.",
       original: "Original",
@@ -32,7 +32,7 @@
       other: "Other",
       notSay: "Prefer not to say",
       participantHint:
-        "Complete the required fields before submitting. The same details apply to both portraits and are fixed after the first submission.",
+        "Enter the required details once; they remain filled in when you switch portraits. You can update them before submitting the second portrait. Each result records the details at the time of submission.",
       result: "Result JSON",
       resultHelp:
         "Copy this JSON and send it to the website developer. Copy each portrait's result before leaving this page.",
@@ -118,7 +118,7 @@
       task: "任务说明",
       taskGoal: "通过视觉联想完成食物人脸拼贴。自由使用和组合提供的食物来替代面部特征，并表现人物的独特之处。",
       taskRules:
-        "请完成两幅肖像，同一种食物可重复使用。你可以移动、旋转、翻转和等比例缩放食物。",
+        "请完成两幅肖像。一共提供16种食物，同一种食物可重复使用。你可以移动、旋转、翻转和等比例缩放食物。",
       taskSubmit:
         "两幅拼贴画需要分别提交两次，提交前可自由编辑。请在完成拼贴画后于下方表格填写简要个人信息，并点击“提交肖像”。提交后将生成一段 JSON 格式的结果。离开前请复制并把每幅肖像的结果发送给开发者。请注意，刷新页面会开始新会话，并清空当前内容。",
       original: "原图",
@@ -142,7 +142,7 @@
       other: "其他",
       notSay: "不愿透露",
       participantHint:
-        "请在提交前填写必填信息。两幅肖像使用同一份信息，首次提交后不可更改。",
+        "个人信息只需填写一次，切换肖像时会保留。提交第二幅肖像前仍可修改，每份结果记录各自提交时的信息。",
       result: "结果 JSON",
       resultHelp:
         "请复制这段 JSON 并发送给网站开发者。离开页面前，请分别复制两幅肖像的结果。",

@@ -19,7 +19,6 @@
   let active = "zhu",
     selected = null,
     ready = false,
-    participant = null,
     gesture = null,
     libraryDrag = null,
     toastTimer;
@@ -638,14 +637,13 @@
 
   // Results stay in this page until the participant copies and shares them.
   function updateSubmission() {
-    $("participantFields").disabled = !!participant;
     const result = state().result;
     $("jsonResult").hidden = !result;
     $("resultJson").value = result || "";
     $("copyStatus").textContent = "";
   }
   function readParticipant() {
-    if (participant) return participant;
+    // The shared form retains its values; read current edits for each submission.
     $("nationality").value = $("nationality").value.trim();
     for (const id of ["gender", "age", "nationality"]) {
       const field = $(id);
@@ -705,7 +703,6 @@
     };
     // Scene fields are identical to agent snapshots; metadata does not affect pixels.
     state().result = JSON.stringify(result, null, 2);
-    participant = { ...details };
     state().submitted = true;
     state().undo = [];
     state().redo = [];
