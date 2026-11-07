@@ -10,7 +10,7 @@
       taskRules:
         "Complete both portraits. There is no time limit or limit on how many food items you use; you may reuse any item. You can move, rotate, flip and resize foods proportionally.",
       taskSubmit:
-        "Edit freely before submitting. Submitting generates your result in JSON format. Before leaving, copy and send each portrait's result to the developer. Refreshing starts a new session and clears the current content.",
+        "Edit freely before submitting. Before submitting, enter your basic personal details in the form below; you only need to fill it in once for both portraits. Submitting generates your result in JSON format. Before leaving, copy and send each portrait's result to the developer. Refreshing starts a new session and clears the current content.",
       original: "Original",
       collage: "Collage",
       library: "Food library",
@@ -120,7 +120,7 @@
       taskRules:
         "请完成两幅肖像。不限时间和食物数量，同一种食物可重复使用。你可以移动、旋转、翻转和等比例缩放食物。",
       taskSubmit:
-        "提交前可自由修改，提交后将生成一段JSON格式的结果。离开前请复制并把每幅肖像的结果发送给开发者。刷新页面会开始新会话，并清空当前内容。",
+        "提交前可自由修改。请在提交前于下方表格填写简要个人信息，两幅肖像只需填写一次，切换肖像不会清空。提交后将生成一段 JSON 格式的结果。离开前请复制并把每幅肖像的结果发送给开发者。刷新页面会开始新会话，并清空当前内容。",
       original: "原图",
       collage: "拼贴",
       library: "食物素材",

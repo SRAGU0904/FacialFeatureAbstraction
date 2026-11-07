@@ -82,9 +82,11 @@
           and resize foods proportionally.
         </p>
         <p data-i18n="taskSubmit">
-          Edit freely before submitting. Submitting generates your result in JSON
-          format. Before leaving, copy and send each portrait's result to the
-          developer. Refreshing starts a new session and clears the current content.
+          Edit freely before submitting. Before submitting, enter your basic personal
+          details in the form below; you only need to fill it in once for both
+          portraits. Submitting generates your result in JSON format. Before leaving,
+          copy and send each portrait's result to the developer. Refreshing starts
+          a new session and clears the current content.
         </p>
         <p id="experimentProgress" role="status">0/2 portraits submitted. Complete both portraits in any order and submit each separately.</p>
       </section>
@@ -186,14 +188,6 @@
                 Clear
               </button>
             </div>
-            <button
-              id="export"
-              class="export-button"
-              disabled
-              data-i18n="submit"
-            >
-              Submit portrait
-            </button>
           </div>
         </article>
         <aside
@@ -378,6 +372,14 @@
             to both portraits and are fixed after the first submission.
           </p>
         </form>
+        <button
+          id="export"
+          class="export-button"
+          disabled
+          data-i18n="submit"
+        >
+          Submit portrait
+        </button>
         <div id="jsonResult" class="json-result" hidden>
           <label for="resultJson" data-i18n="result">Result JSON</label>
           <textarea
