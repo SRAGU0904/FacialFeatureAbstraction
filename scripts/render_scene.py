@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a received human or agent scene JSON with the existing agent renderer."""
+"""Render one scene JSON or a folder of scene JSONs with the existing renderer."""
 import argparse
 import base64
 from pathlib import Path
@@ -25,20 +25,37 @@ def render_file(source, output, renderer):
     return output
 
 
+def render_jobs(source, output=None):
+    """Preflight every input/output before starting the browser or writing images."""
+    if source.is_dir():
+        if output is not None:
+            raise ValueError('--output is only supported for a single JSON file.')
+        sources = sorted(path for path in source.glob('*.json') if path.is_file())
+        if not sources:
+            raise ValueError(f'No .json files found directly inside: {source}')
+        jobs = [(path, path.with_suffix('.png')) for path in sources]
+    else:
+        jobs = [(source, output if output is not None else source.with_suffix('.png'))]
+    for path, destination in jobs:
+        load_scene(path)
+        if destination.exists():
+            raise FileExistsError(f'Output already exists: {destination}')
+    return jobs
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('source', type=Path, help='Full scene JSON received from a participant or agent')
-    parser.add_argument('--output', type=Path, required=True, help='New full-resolution PNG file')
+    parser.add_argument('source', type=Path, help='Full scene JSON or folder containing scene .json files')
+    parser.add_argument('--output', type=Path,
+                        help='Single-file output path; otherwise save each PNG beside its JSON')
     args = parser.parse_args()
     try:
-        load_scene(args.source)
-        if args.output.exists():
-            raise FileExistsError(f'Output already exists: {args.output}')
+        jobs = render_jobs(args.source, args.output)
         with BrowserRenderer() as renderer:
-            output = render_file(args.source, args.output, renderer)
+            for source, output in jobs:
+                print(render_file(source, output, renderer), flush=True)
     except (OSError, ValueError) as error:
         parser.exit(1, f'{error}\n')
-    print(output)
 
 
 if __name__ == '__main__':

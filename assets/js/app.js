@@ -767,18 +767,11 @@
     if (mobileLayout.matches)
       document.querySelector(".canvas-actions").after(library);
     else document.querySelector(".studio").append(library);
-    updateLibraryHeight();
-  }
-  function updateLibraryHeight() {
-    const h = $("canvasFrame").getBoundingClientRect().height;
-    $("foodGrid").style.maxHeight =
-      mobileLayout.matches ? "none" : Math.max(220, h - 34) + "px";
   }
   mobileLayout.addEventListener("change", updateLibraryLayout);
   updateLibraryLayout();
   new ResizeObserver(() => {
     if (ready) draw();
-    updateLibraryHeight();
   }).observe($("canvasFrame"));
   async function init() {
     i18n.apply("en");

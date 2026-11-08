@@ -60,7 +60,28 @@ PLAYWRIGHT_BROWSERS_PATH=/private/tmp/foodface-agent-browsers \
 
 `render_scene.py` validates the scene and calls the existing `agent.BrowserRenderer`, which uses `agent-render.html` and the shared `renderer.js`. Demographics do not affect rendering. Output is the original portrait resolution; existing output files are never overwritten. The same command accepts full agent scene snapshots. Raw agent responses containing only `items` also need the portrait and version fields supplied by the agent runner.
 
+For manual participant folders, save `euro.json` and `zhu.json` under
+`result-data/human/0001/` (then `0002/`, etc.). Pass the folder to render
+both images beside their source JSONs:
+
+```sh
+PLAYWRIGHT_BROWSERS_PATH=/private/tmp/foodface-agent-browsers \
+  /private/tmp/foodface-agent-venv/bin/python scripts/render_scene.py \
+  result-data/human/0001
+```
+
+Folder mode validates every immediate `.json` file and checks for existing PNGs
+before rendering; it does not recurse. Single-file mode also defaults to a PNG
+beside the JSON when `--output` is omitted. See the [manual data workflow](docs/human-data.md#numbered-participant-folders-manual-workflow).
+
 Keep received JSON in private storage outside the public site. The existing local snapshot/submission APIs and previously saved PNGs remain available for earlier integrations; the human page no longer calls those APIs. `result-data/` remains ignored by Git. Keep the matching assets, renderer, and browser version with research results for reproducibility; do not replace shared assets without archiving/versioning them.
+
+For optional automatic intake, use `scripts/human_results.py` to import one received JSON from
+the macOS clipboard or a file, preserve the original, group results by session,
+and render automatically. Choose `--collection formal` or `--collection self-test`
+explicitly. Duplicate imports do not overwrite records; re-renders keep separate
+versions. See [Human data intake and management](docs/human-data.md) for commands,
+completeness checks, and private backups.
 
 ## Agent prototype
 
@@ -68,7 +89,7 @@ The local Python runner accepts three complete JSON layouts (an initial attempt 
 
 ## Deferred work
 
-Single-scene JSON-to-PNG rendering is implemented with the existing agent renderer. Batch regeneration remains deferred. Previously saved JSON + PNG pairs remain intact for comparison.
+Single-scene and single-folder JSON-to-PNG rendering are implemented with the existing agent renderer. Cross-folder batch regeneration remains deferred. Previously saved JSON + PNG pairs remain intact for comparison.
 
 ## Repository structure
 
@@ -90,6 +111,7 @@ assets/
 scripts/server.py             Local static server and snapshot save API
 scripts/agent.py              JSON-to-image agent loop (manual responses)
 scripts/render_scene.py       Render received human or agent scene JSON to PNG
+scripts/human_results.py      Archive, list and re-render received human results
 scripts/openai_experiment.py   OpenAI experiment and offline HTTP-mocked dry run
 agent-render.html             Isolated browser rendering surface
 prompts/agent-layout.txt       English agent instructions

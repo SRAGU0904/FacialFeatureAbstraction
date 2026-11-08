@@ -105,13 +105,13 @@ img {
   background: #ebeee3;
 }
 main {
-  max-width: 1370px;
+  max-width: 1490px;
   margin: auto;
   padding: 23px 32px;
 }
 .studio {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 185px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 305px;
   gap: 22px;
   align-items: start;
 }
@@ -223,10 +223,9 @@ h2 {
 }
 .food-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
-  overflow-y: auto;
-  max-height: 510px;
+  overflow: visible;
   padding: 1px 5px 4px 1px;
   scrollbar-width: thin;
   scrollbar-color: #c3ccba transparent;
@@ -460,7 +459,7 @@ fieldset:disabled {
   }
   .studio {
     gap: 16px;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 145px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 235px;
   }
   .library {
     padding-left: 11px;
@@ -469,6 +468,7 @@ fieldset:disabled {
     height: 45px;
   }
   .food-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
   fieldset {
@@ -489,14 +489,14 @@ fieldset:disabled {
 }
 @media (max-width: 750px) {
   .studio {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 110px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 180px;
     gap: 12px;
   }
   .food-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .food-card {
-    flex-direction: row;
+    flex-direction: column;
     padding: 5px;
     gap: 5px;
   }
