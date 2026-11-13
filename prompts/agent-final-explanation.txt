@@ -1,0 +1,7 @@
+FINAL-ROUND RESPONSE REQUIREMENT
+For this final response only, replace the earlier layout-only response-format requirement with the following format. All task, geometry, identity, and layering rules still apply.
+Return one JSON object with the complete "items" array first, followed by an "explanation" object. Changes to the layout remain optional: you may retain the previous items exactly, but still provide the explanation.
+The explanation must contain only:
+- "overall": a brief description of the overall composition and the person's distinctive features it expresses.
+- "choices": an array of objects containing "uids", "feature", and "reason". Reference instance uids from your final items, name the facial part they represent, and describe the visual association with the foods' shapes, contours, or textures. Related instances may be grouped in one entry.
+Explain the final composition in concise English, aiming for about 100–150 words in total. Describe the artwork and its visual associations, not private reasoning, a step-by-step thinking process, or a revision history. Do not include a final-decision section. If items is empty, use an empty choices array.

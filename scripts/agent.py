@@ -145,7 +145,8 @@ def hashes():
     files = [p for p in (ROOT / 'assets').rglob('*') if p.suffix in {'.png', '.js', '.json'}]
     files += [ROOT / name for name in ('agent-render.html', 'scripts/agent.py', 'scripts/server.py',
                                       'scripts/requirements-agent.txt', 'prompts/agent-layout.txt')]
-    files += [p for p in (ROOT / 'scripts/openai_experiment.py', ROOT / 'scripts/requirements-openai.txt')
+    files += [p for p in (ROOT / 'scripts/openai_experiment.py', ROOT / 'scripts/requirements-openai.txt',
+                         ROOT / 'prompts/agent-final-explanation.txt')
               if p.exists()]
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(files)}
 

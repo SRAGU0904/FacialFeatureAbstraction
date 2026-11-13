@@ -3,6 +3,7 @@ import base64
 from contextlib import redirect_stdout
 from copy import deepcopy
 import hashlib
+import gzip
 import importlib.util
 import io
 import json
@@ -15,7 +16,8 @@ from unittest.mock import patch
 
 from agent import BrowserRenderer, PORTRAITS, food_ids, read_json
 from openai_experiment import (API_URL, FIXTURES, MODEL, DryResponses, create_client,
-                               run_experiment, usage_totals)
+                               run_experiment, usage_totals, build_request, split_output,
+                               numbered_experiment)
 from test_server import png_image
 
 HAS_SDK = importlib.util.find_spec('openai') is not None
@@ -45,6 +47,20 @@ class StubRenderer:
 
 @unittest.skipUnless(HAS_SDK, 'Install scripts/requirements-openai.txt')
 class AdapterTests(unittest.TestCase):
+    def test_readable_names_increment_without_overwriting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first, number = numbered_experiment(root, ['zhu', 'euro'], 'live')
+            self.assertEqual(first.name, 'Experiment-live-Zhu-Yuanzhang_Rudolf-II-001')
+            (first / 'keep.txt').write_text('original')
+            second, number = numbered_experiment(root, ['zhu', 'euro'], 'live')
+            self.assertEqual(number, 2)
+            self.assertTrue(second.name.endswith('-002'))
+            self.assertEqual((first / 'keep.txt').read_text(), 'original')
+            dry, number = numbered_experiment(root, ['zhu', 'euro'], 'dry-run')
+            self.assertEqual(number, 1)
+            self.assertNotEqual(dry, first)
+
     def run_case(self, root, client, portraits=('zhu',), renderer=None):
         with redirect_stdout(io.StringIO()):
             return run_experiment(renderer or StubRenderer(), client, portraits, root,
@@ -73,6 +89,15 @@ class AdapterTests(unittest.TestCase):
             for trial_index, trial in enumerate(record['trials']):
                 run = output / trial['run']
                 self.assertTrue((output / trial['finalPng']).exists())
+                expected_name = ('Zhu-Yuanzhang' if trial['portraitId'] == 'zhu' else 'Rudolf-II') + '-001'
+                self.assertEqual(run.name, expected_name)
+                self.assertEqual(Path(trial['finalPng']).name, expected_name + '.png')
+                final_scene = read_json(output / trial['finalScene'])
+                self.assertEqual(final_scene['image']['file'], expected_name + '.png')
+                self.assertEqual(final_scene['image']['sha256'],
+                                 hashlib.sha256((output / trial['finalPng']).read_bytes()).hexdigest())
+                self.assertEqual(read_json(output / trial['explanation']),
+                                 read_json(run / 'round-2/explanation.json'))
                 for number, call in enumerate(trial['calls']):
                     request = requests[trial_index * 3 + number]
                     self.assertEqual(request['service_tier'], 'default')
@@ -84,7 +109,20 @@ class AdapterTests(unittest.TestCase):
                         self.assertEqual(request['input'][0]['role'], 'developer')
                     else:
                         self.assertEqual(request['previous_response_id'], trial['calls'][number - 1]['responseId'])
-                        self.assertEqual(len(request['input']), 1)
+                        self.assertEqual(len(request['input']), 2 if number == 2 else 1)
+                    schema = request['text']['format']['schema']
+                    self.assertEqual(list(schema['properties']),
+                                     ['items', 'explanation'] if number == 2 else ['items'])
+                    if number < 2:
+                        control, _ = build_request(run, number, call['previousResponseId'],
+                                                   {**SETTINGS, 'finalExplanation': False})
+                        self.assertEqual(request, control)
+                    else:
+                        self.assertEqual(request['input'][0]['role'], 'developer')
+                        self.assertIn('FINAL-ROUND RESPONSE REQUIREMENT', request['input'][0]['content'])
+                        full = read_json(run / 'calls/round-2/model-output.txt')
+                        self.assertEqual(full['explanation'], read_json(run / 'round-2/explanation.json'))
+                        self.assertEqual(set(read_json(run / 'round-2/response.txt')), {'items'})
                     saved = read_json(output / call['request'])
                     parts = request['input'][-1]['content']
                     logged_parts = saved['input'][-1]['content']
@@ -105,6 +143,70 @@ class AdapterTests(unittest.TestCase):
                 self.assertNotIn('test-placeholder', all_logs)
                 self.assertNotIn('Authorization', all_logs)
 
+    def test_explanation_validation(self):
+        layout = read_json(FIXTURES / 'round-2.json')
+        valid = {**layout, 'explanation': {'overall': 'Distinctive contours.', 'choices': [
+            {'uids': [layout['items'][0]['uid']], 'feature': 'Face', 'reason': 'Similar contour.'}]}}
+        self.assertEqual(split_output(json.dumps(valid), True), (layout, valid['explanation']))
+        with self.assertRaises(ValueError):
+            split_output(json.dumps(valid), False)
+        for kind in ('unknown-uid', 'final-decision', 'missing-explanation'):
+            invalid = deepcopy(valid)
+            if kind == 'unknown-uid':
+                invalid['explanation']['choices'][0]['uids'] = ['not-in-layout']
+            elif kind == 'final-decision':
+                invalid['explanation']['finalDecision'] = 'Done'
+            else:
+                del invalid['explanation']
+            with self.subTest(kind=kind), self.assertRaises(ValueError):
+                split_output(json.dumps(invalid), True)
+
+    def test_branch_uses_second_response_once_and_preserves_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            client, _ = create_client(True, 30)
+            with client:
+                original = self.run_case(root, client)
+            # A temporary fixture represents a saved live run; no external API is used.
+            record = read_json(original / 'experiment.json')
+            source = original / record['trials'][0]['run']
+            for path in (original / 'experiment.json', source / 'run.json'):
+                data = read_json(path)
+                data['simulated'] = False
+                path.write_text(json.dumps(data))
+            before = {str(p.relative_to(original)): p.read_bytes() for p in original.rglob('*') if p.is_file()}
+            second_id = record['trials'][0]['calls'][1]['responseId']
+            layout = read_json(source / 'round-1/response.txt')
+            client, fixture = create_client(True, 30)
+            fixture.seed_branch(second_id, layout)
+            with client, redirect_stdout(io.StringIO()):
+                output = run_experiment(StubRenderer(), client, ['zhu'], root, SETTINGS, True, source)
+            result = read_json(output / 'experiment.json')
+            trial = result['trials'][0]
+            run = output / trial['run']
+            self.assertEqual(fixture.calls, [{'round': 2, 'previousResponseId': second_id, 'imageCount': 1}])
+            self.assertEqual(len(trial['calls']), 1)
+            self.assertEqual(len(trial['inheritedCalls']), 2)
+            self.assertEqual(read_json(output / 'token-usage.json')['requests'], 1)
+            self.assertTrue(trial['fork']['renderReplayMatched'])
+            self.assertTrue((run / 'round-2/explanation.txt').exists())
+            self.assertEqual(read_json(run / 'round-2/response.txt'), layout)
+            self.assertTrue((run / 'comparison.json').exists())
+            for n in (0, 1):
+                self.assertEqual((run / f'round-{n}/feedback.png').read_bytes(),
+                                 (source / f'round-{n}/feedback.png').read_bytes())
+            self.assertEqual(before, {str(p.relative_to(original)): p.read_bytes()
+                                      for p in original.rglob('*') if p.is_file()})
+
+            # Pixel mismatch must stop before making even one request.
+            broken = StubRenderer()
+            broken.render = lambda scene, edge: {'full': broken.image(), 'feedback': broken.image()}
+            client, fixture = create_client(True, 30)
+            fixture.seed_branch(second_id, layout)
+            with client, redirect_stdout(io.StringIO()), self.assertRaisesRegex(ValueError, 'changed pixels'):
+                run_experiment(broken, client, ['zhu'], root, SETTINGS, True, source)
+            self.assertEqual(fixture.calls, [])
+
     def test_dry_client_ignores_real_key_and_base_url_environment(self):
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'secret-sentinel',
                                     'OPENAI_BASE_URL': 'https://example.invalid/v1'}):
@@ -120,6 +222,89 @@ class AdapterTests(unittest.TestCase):
         with patch.dict(os.environ, {'OPENAI_API_KEY': ''}):
             with self.assertRaisesRegex(ValueError, 'OPENAI_API_KEY'):
                 create_client(False, 30)
+
+    def test_live_client_negotiates_gzip_and_decodes_compressed_response(self):
+        import httpx2
+        fixture = DryResponses()
+        encodings = []
+
+        def handle(request):
+            encodings.append(request.headers.get('accept-encoding'))
+            self.assertEqual(encodings[-1], 'gzip')
+            payload = fixture(request).content
+            # A streaming body makes the actual HTTPX decoder run on read(),
+            # instead of handing the SDK an already-decoded JSON fixture.
+            return httpx2.Response(200, headers={'content-type': 'application/json',
+                                               'content-encoding': 'gzip'},
+                                   stream=httpx2.ByteStream(gzip.compress(payload)))
+
+        # Intercept the real client's transport before any network access.
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'offline-placeholder'}), \
+                patch.object(httpx2.HTTPTransport, 'handle_request', side_effect=handle):
+            client, _ = create_client(False, 30)
+            with client, tempfile.TemporaryDirectory() as directory:
+                output = self.run_case(Path(directory), client)
+                self.assertEqual(read_json(output / 'experiment.json')['status'], 'completed')
+        self.assertEqual(encodings, ['gzip'] * 3)
+
+    def test_raw_response_path_does_not_depend_on_sdk_typed_conversion(self):
+        client, fixture = create_client(True, 30)
+        with client, tempfile.TemporaryDirectory() as directory:
+            # Typed SDK parsing may fail for an unexpected response variant;
+            # the experiment only needs the raw JSON envelope and message text.
+            with patch.object(client, '_process_response_data',
+                              side_effect=TypeError('Fixture typed-conversion failure')) as typed:
+                output = self.run_case(Path(directory), client)
+            typed.assert_not_called()
+            record = read_json(output / 'experiment.json')
+            self.assertEqual(record['status'], 'completed')
+            self.assertEqual(len(fixture.calls), 3)
+            run = output / record['trials'][0]['run']
+            self.assertTrue((run / 'round-2/explanation.txt').exists())
+            self.assertTrue((run / 'calls/round-2/api-response.json').exists())
+
+    def test_invalid_envelope_is_saved_with_usage_before_validation(self):
+        import httpx2
+        fixture = DryResponses()
+
+        def handler(request):
+            raw = fixture(request).json()
+            raw['output'] = None
+            raw['usage'] = {'input_tokens': 100, 'output_tokens': 20, 'total_tokens': 120}
+            return httpx2.Response(200, json=raw)
+
+        with tempfile.TemporaryDirectory() as directory, self.custom_client(handler) as client:
+            with self.assertRaisesRegex(ValueError, 'output must be an array'):
+                self.run_case(Path(directory), client)
+            output = next(Path(directory).iterdir())
+            record = read_json(output / 'experiment.json')
+            run = output / record['trials'][0]['run']
+            self.assertIsNone(read_json(run / 'calls/round-0/api-response.json')['output'])
+            self.assertEqual(record['usage']['total_tokens'], 120)
+            diagnostic = read_json(output / 'error.json')
+            self.assertEqual(diagnostic['stage'], 'validate-model-output')
+            self.assertTrue(diagnostic['frames'])
+            self.assertEqual(len(fixture.calls), 1)
+
+    def test_type_error_reports_location_without_credentials(self):
+        def handler(request):
+            raise TypeError('Fixture failure with env-secret-sentinel and Bearer sk-test-sentinel')
+
+        with tempfile.TemporaryDirectory() as directory, self.custom_client(handler) as client:
+            with patch.dict(os.environ, {'OPENAI_API_KEY': 'env-secret-sentinel'}), self.assertRaises(Exception):
+                self.run_case(Path(directory), client)
+            output = next(Path(directory).iterdir())
+            diagnostic = read_json(output / 'error.json')
+            # The SDK can wrap a transport exception as APIConnectionError.
+            self.assertEqual(diagnostic['stage'], 'api-request')
+            self.assertTrue(diagnostic['frames'])
+            cause = diagnostic['causes'][-1] if diagnostic.get('causes') else diagnostic
+            self.assertEqual(cause['type'], 'TypeError')
+            self.assertIn('Fixture failure', cause['message'])
+            self.assertIn('[REDACTED]', cause['message'])
+            for path in output.rglob('*.json'):
+                self.assertNotIn('env-secret-sentinel', path.read_text())
+                self.assertNotIn('sk-test-sentinel', path.read_text())
 
     def test_bad_responses_stop_and_preserve_prior_round(self):
         import httpx2
